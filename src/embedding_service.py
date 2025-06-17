@@ -5,10 +5,13 @@ from utils import (
     ModelInfo,
     list_embeddings_to_response,
     to_rerank_response,
+    to_caption_response,
+    to_image_embedding_response,
 )
 
 import asyncio
-
+import base64
+from typing import Any
 
 class EmbeddingService:
     def __init__(self):
@@ -30,18 +33,18 @@ class EmbeddingService:
 
         self.engine_array = AsyncEngineArray.from_args(engine_args)
         self.is_running = False
-        self.sepamore = asyncio.Semaphore(1)
+        self.semaphore = asyncio.Semaphore(1)
 
     async def start(self):
-        """starts the engine background loop"""
-        async with self.sepamore:
+        """Starts the engine background loop."""
+        async with self.semaphore:
             if not self.is_running:
                 await self.engine_array.astart()
                 self.is_running = True
 
     async def stop(self):
-        """stops the engine background loop"""
-        async with self.sepamore:
+        """Stops the engine background loop."""
+        async with self.semaphore:
             if self.is_running:
                 await self.engine_array.astop()
                 self.is_running = False
@@ -60,7 +63,7 @@ class EmbeddingService:
         model_name: str,
         return_as_list: bool = False,
     ):
-        """returns embeddings for the input text"""
+        """Returns embeddings for the input text."""
         if not self.is_running:
             await self.start()
         if not isinstance(embedding_input, list):
@@ -76,10 +79,48 @@ class EmbeddingService:
                 embeddings, model=model_name, usage=usage
             )
 
-    async def infinity_rerank(
-        self, query: str, docs: str, return_docs: str, model_name: str
+    async def route_florence2_get_embeddings(
+        self,
+        embedding_input: str | list[str],
+        model_name: str,
+        return_as_list: bool = False,
     ):
-        """Rerank the documents based on the query"""
+        """Returns embeddings for the input image using Florence-2."""
+        if not self.is_running:
+            await self.start()
+        if not isinstance(embedding_input, list):
+            embedding_input = [embedding_input]
+
+        # Assuming embedding_input is a base64 encoded image
+        embeddings, usage = await self.engine_array[model_name].embed(embedding_input)
+        if return_as_list:
+            return [
+                to_image_embedding_response(embeddings, model=model_name, usage=usage)
+            ]
+        else:
+            return to_image_embedding_response(
+                embeddings, model=model_name, usage=usage
+            )
+
+    async def route_florence2_caption(
+        self,
+        image: str,
+        prompt: str = "",
+    ):
+        """Returns a caption for the input image using Florence-2."""
+        if not self.is_running:
+            await self.start()
+
+        # Assuming image is a base64 encoded image
+        caption, usage = await self.engine_array["florence-2"].caption(image, prompt=prompt)
+        return to_caption_response(
+            caption=caption, model="florence-2", usage=usage
+        )
+
+    async def infinity_rerank(
+        self, query: str, docs: list[str], return_docs: bool, model_name: str
+    ):
+        """Rerank the documents based on the query."""
         if not self.is_running:
             await self.start()
         scores, usage = await self.engine_array[model_name].rerank(
