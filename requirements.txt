@@ -12,7 +12,7 @@ transformers>=4.12.0
 
 # Image processing
 Pillow>=8.3.1
-python-base64>=1.0.0
+pybase64
 
 # Utility and miscellaneous
 tqdm>=4.62.3
