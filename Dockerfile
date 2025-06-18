@@ -25,8 +25,5 @@ RUN pip install torch==2.5.1+cu124 --index-url https://download.pytorch.org/whl/
 # Add src files
 ADD src .
 
-# Add test input
-COPY test_input.json /test_input.json
-
 # start the handler
 CMD python -u /handler.py
